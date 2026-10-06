@@ -5,7 +5,9 @@
   "description": "Repo Analysis Tool (RAT) - web dashboard that ingests Git repositories (zip upload or deep clone) and computes file, directory, repository, commit-set and author metrics.",
   "main": "server/index.js",
   "scripts": {
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "verify": "node tests/verify.js",
+    "crosscheck": "node tests/crosscheck-cjson.js"
   },
   "engines": {
     "node": ">=18"

@@ -2,21 +2,22 @@
 
 /**
  * RAT - Repo Analysis Tool
- * Sprint 0: HTTP server that serves the static frontend and a health endpoint.
+ * HTTP server: static frontend + REST API. Zero external dependencies.
  *
- * Zero external dependencies: Node built-ins only (http, fs, path).
- * The API route table grows sprint by sprint (see api/ modules in later sprints).
+ * Sprint 0: scaffold. Sprint 1-2: ingestion (url clone + zip upload) and the
+ * metric engine are live - see server/api.js, ingest.js, engine.js, metrics.js.
  */
 
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+const { handleApi, VERSION } = require('./api');
+
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const ROOT = path.join(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT, 'public');
-const VERSION = '0.1.0';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -26,7 +27,10 @@ const MIME = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
   '.woff2': 'font/woff2',
+  '.txt': 'text/plain; charset=utf-8',
   '.map': 'application/json; charset=utf-8'
 };
 
@@ -62,19 +66,6 @@ function serveStatic(res, pathname) {
   });
 }
 
-/* ------------------------------------------------------------------ */
-/* API route table. Keys are "METHOD /path"; exact-match for now.      */
-/* ------------------------------------------------------------------ */
-const api = {
-  'GET /api/health': (req, res) =>
-    sendJson(res, 200, {
-      ok: true,
-      service: 'rat',
-      version: VERSION,
-      time: new Date().toISOString()
-    })
-};
-
 const server = http.createServer(async (req, res) => {
   let u;
   try {
@@ -83,19 +74,17 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 400, { error: 'bad request url' });
   }
 
-  const key = `${req.method} ${u.pathname}`;
-  const handler = api[key];
-
   try {
-    if (handler) return await handler(req, res, u);
-    if (u.pathname.startsWith('/api/')) return sendJson(res, 404, { error: 'no such endpoint' });
+    if (u.pathname === '/api' || u.pathname.startsWith('/api/')) {
+      return await handleApi(req, res, u);
+    }
     return serveStatic(res, u.pathname);
   } catch (err) {
-    console.error('[rat] handler error:', err);
+    console.error('[rat] server error:', err);
     return sendJson(res, 500, { error: 'internal error', detail: String((err && err.message) || err) });
   }
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`[rat] listening on http://localhost:${PORT} (bound ${HOST}:${PORT})`);
+  console.log(`[rat] v${VERSION} listening on http://localhost:${PORT} (bound ${HOST}:${PORT})`);
 });

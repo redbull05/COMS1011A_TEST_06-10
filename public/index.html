@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RAT - Repo Analysis Tool</title>
   <link rel="icon" href="data:," />
+  <link rel="preload" href="fonts/Silkscreen-Regular.ttf" as="font" type="font/ttf" crossorigin />
+  <link rel="preload" href="fonts/Silkscreen-Bold.ttf" as="font" type="font/ttf" crossorigin />
+  <link rel="preload" href="fonts/Cantarell-Regular.ttf" as="font" type="font/ttf" crossorigin />
+  <link rel="preload" href="fonts/Cantarell-Bold.ttf" as="font" type="font/ttf" crossorigin />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -20,28 +24,74 @@
   </header>
 
   <main class="layout">
-    <section class="card hero">
-      <span class="pill">Sprint 0 - scaffold online</span>
-      <h2>The backend is serving this page.</h2>
-      <p class="muted">
-        Ingestion (deep clone &amp; zip upload) and the metric engine arrive in Sprint 1.
-        Once wired up, this dashboard computes the five metric categories from the brief:
+    <!-- repository bar: selector + ingestion -->
+    <section class="card repo-bar">
+      <div class="repo-current">
+        <label class="label" for="repo-select">Repository</label>
+        <div class="row">
+          <select id="repo-select" aria-label="Selected repository"></select>
+          <button id="btn-delete" class="btn ghost" type="button" title="Remove this repository">Remove</button>
+        </div>
+        <p class="repo-meta" id="repo-meta"></p>
+      </div>
+
+      <div class="add-repos">
+        <div class="add-block">
+          <label class="label" for="clone-url">Clone from URL</label>
+          <div class="row">
+            <input id="clone-url" type="text" placeholder="https://github.com/user/repo.git"
+                   autocomplete="off" spellcheck="false" />
+            <button id="btn-clone" class="btn primary" type="button">Clone</button>
+          </div>
+        </div>
+        <div class="add-block">
+          <label class="label" for="zip-file">Upload zip (must contain .git)</label>
+          <div class="row">
+            <input id="zip-file" type="file" accept=".zip,application/zip" />
+            <button id="btn-upload" class="btn primary" type="button">Upload</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div id="banner" class="banner hidden"></div>
+
+    <section id="repo-view" class="hidden">
+      <div class="tiles" id="tiles"></div>
+
+      <section class="card table-card">
+        <div class="tabs" id="tabs">
+          <button class="tab active" data-tab="files" type="button">Files</button>
+          <button class="tab" data-tab="dirs" type="button">Directories</button>
+          <button class="tab" data-tab="authors" type="button">Authors</button>
+        </div>
+        <p class="table-note" id="table-note"></p>
+        <div class="table-wrap">
+          <table id="metric-table">
+            <thead id="metric-thead"></thead>
+            <tbody id="metric-tbody"></tbody>
+          </table>
+        </div>
+        <p class="hint" id="table-hint"></p>
+      </section>
+    </section>
+
+    <section id="empty-state" class="card empty hidden">
+      <h2>No repositories yet</h2>
+      <p>
+        Clone a repository by URL, or upload a zip that contains its
+        <span class="mono">.git</span> folder. Metrics appear here as soon as
+        ingestion finishes.
       </p>
-      <ul class="feature-list">
-        <li><strong>File</strong> added lines, removed lines, growth, churn</li>
-        <li><strong>Directory</strong> same four, rolled up recursively</li>
-        <li><strong>Repository</strong> directory metrics on the root</li>
-        <li><strong>Commit set</strong> totals, modifications, modification frequency, churn rate</li>
-        <li><strong>Author</strong> modifications, churn, ownership</li>
-      </ul>
     </section>
   </main>
 
   <footer class="footer">
     <span>COMS3011A · RAT</span>
-    <span class="sprint-badge">sprint 0</span>
+    <span class="sprint-badge">sprints 0-2 · sections a-c</span>
   </footer>
 
+  <div id="toast" class="toast hidden" role="status"></div>
   <script src="app.js"></script>
 </body>
 </html>
