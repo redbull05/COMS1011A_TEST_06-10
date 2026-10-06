@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RAT - Repo Analysis Tool</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">RAT</div>
+      <div class="brand-text">
+        <h1>Repo Analysis Tool</h1>
+        <p class="tagline">Software-evolution metrics for Git repositories</p>
+      </div>
+    </div>
+    <div class="status" id="health-status"><span class="dot"></span>connecting…</div>
+  </header>
+
+  <main class="layout">
+    <section class="card hero">
+      <span class="pill">Sprint 0 - scaffold online</span>
+      <h2>The backend is serving this page.</h2>
+      <p class="muted">
+        Ingestion (deep clone &amp; zip upload) and the metric engine arrive in Sprint 1.
+        Once wired up, this dashboard computes the five metric categories from the brief:
+      </p>
+      <ul class="feature-list">
+        <li><strong>File</strong> added lines, removed lines, growth, churn</li>
+        <li><strong>Directory</strong> same four, rolled up recursively</li>
+        <li><strong>Repository</strong> directory metrics on the root</li>
+        <li><strong>Commit set</strong> totals, modifications, modification frequency, churn rate</li>
+        <li><strong>Author</strong> modifications, churn, ownership</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>COMS3011A · RAT</span>
+    <span class="sprint-badge">sprint 0</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# Runtime data (ingested repo snapshots, cloned repos, temp files)
+data/
+tmp/
+
+# Dependencies (none required, but just in case)
+node_modules/
+
+# Logs / OS noise
+*.log
+.DS_Store
+
+# Local verification screenshots (browser tooling artifacts)
+*_screenshot.png
