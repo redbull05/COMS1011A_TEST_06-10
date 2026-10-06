@@ -60,7 +60,8 @@ async function createRepo({ sourceType, source, name }) {
     commitCount: 0,
     counts: null,
     hasMailmap: false,
-    shallow: false
+    shallow: false,
+    aliases: {} // manual author merges (S4): { fromEmail: toEmail }, lowercase
   };
   store.saveMeta(id, meta);
   return meta;

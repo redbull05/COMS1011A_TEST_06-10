@@ -49,7 +49,10 @@ const state = {
   commits: [],
   authorOptions: [],
   commitSearch: '',
-  sourcesFor: null
+  sourcesFor: null,
+  bucket: 'week',
+  timeline: [],
+  checkedEmails: new Set()
 };
 
 const els = {};
@@ -58,7 +61,10 @@ for (const id of [
   'zip-file', 'btn-upload', 'banner', 'repo-view', 'tiles', 'tabs', 'table-note',
   'metric-thead', 'metric-tbody', 'table-hint', 'empty-state', 'toast',
   'filters-flag', 'btn-filters-clear', 'filter-author', 'filter-from', 'filter-to',
-  'path-chip', 'commits-summary', 'commit-search', 'commits-list'
+  'path-chip', 'commits-summary', 'commit-search', 'commits-list',
+  'metric-table', 'bucket-switch', 'chart', 'chart-hint',
+  'merge-bar', 'merge-hint', 'btn-reset-merges', 'merge-controls', 'merge-into',
+  'btn-merge', 'btn-merge-clear'
 ]) {
   els[id] = $(id);
 }
@@ -205,6 +211,7 @@ function renderRepoMeta(meta) {
 
 async function selectRepo(id) {
   state.currentId = id;
+  state.checkedEmails.clear();
   els['repo-select'].value = id;
 
   const meta = metaById(id);
@@ -387,16 +394,22 @@ async function loadRepoData(id) {
   els['metric-tbody'].innerHTML = '';
   try {
     const qs = filterQS();
-    const [metrics, files, dirs, authors] = await Promise.all([
+    const tq = qs ? `${qs}&bucket=${state.bucket}` : `?bucket=${state.bucket}`;
+    const [metrics, files, dirs, authors, tl] = await Promise.all([
       api(`/api/repos/${id}/metrics${qs}`),
       api(`/api/repos/${id}/files${qs}`),
       api(`/api/repos/${id}/dirs${qs}`),
-      api(`/api/repos/${id}/authors${qs}`)
+      api(`/api/repos/${id}/authors${qs}`),
+      api(`/api/repos/${id}/timeline${tq}`)
     ]);
     if (seq !== state.requestSeq) return; // superseded by a newer selection
     state.totals = metrics.totals;
     state.rows = { files: files.rows, dirs: dirs.rows, authors: authors.rows };
+    state.timeline = tl.rows || [];
+    const valid = new Set(state.rows.authors.map((a) => a.email));
+    state.checkedEmails = new Set([...state.checkedEmails].filter((e) => valid.has(e)));
     renderTiles();
+    renderChart();
     renderTable();
   } catch (err) {
     if (seq !== state.requestSeq) return;
@@ -452,6 +465,7 @@ const COLS = {
 };
 COLS.dirs = COLS.files;
 COLS.authors = [
+  { key: '__check', label: '', type: 'check' },
   { key: 'name', label: 'Author', type: 'name' },
   { key: 'email', label: 'Email', type: 'email' },
   { key: 'modifications', label: 'Mods', type: 'num' },
@@ -479,6 +493,12 @@ function renderTable() {
     '<tr>' +
     cols
       .map((c) => {
+        if (c.type === 'check') {
+          const all =
+            state.rows.authors.length > 0 &&
+            state.rows.authors.every((a) => state.checkedEmails.has(a.email));
+          return `<th class="check"><input type="checkbox" id="check-all" aria-label="select all authors"${all ? ' checked' : ''} /></th>`;
+        }
         const classes = ['sortable'];
         if (NUMERIC.has(c.type)) classes.push('num');
         if (sort.key === c.key) classes.push('sorted');
@@ -506,11 +526,18 @@ function renderTable() {
     all.length > MAX_ROWS
       ? `Showing the first ${fmtInt(MAX_ROWS)} of ${fmtInt(all.length)} rows — click a column header to re-sort.`
       : '';
+
+  renderMergeBar();
 }
 
 function cell(c, r) {
   const v = r[c.key];
   switch (c.type) {
+    case 'check':
+      return (
+        `<td class="check"><input type="checkbox" class="row-check" data-email="${escapeHtml(r.email)}"` +
+        ` aria-label="select ${escapeHtml(r.name)}"${state.checkedEmails.has(r.email) ? ' checked' : ''} /></td>`
+      );
     case 'path': {
       const p = String(v || '');
       const cut = p.lastIndexOf('/');
@@ -614,6 +641,8 @@ async function doDelete() {
     state.currentId = null;
     state.totals = null;
     state.rows = { files: [], dirs: [], authors: [] };
+    state.timeline = [];
+    state.checkedEmails.clear();
     state.commits = [];
     state.authorOptions = [];
     state.sourcesFor = null;
@@ -649,6 +678,165 @@ function maybePoll() {
     }
     maybePoll();
   }, POLL_MS);
+}
+
+/* ------------------------------------------------------------------ chart */
+
+function fmtBucketLabel(ts, bucket) {
+  const d = new Date(ts * 1000);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return bucket === 'month' ? `${y}-${m}` : `${m}-${day}`;
+}
+
+const MAX_CHART_BUCKETS = 600;
+
+/** Hand-rolled SVG bar chart (zero dependencies): added vs removed per bucket. */
+function renderChart() {
+  const el = els.chart;
+  const all = state.timeline || [];
+  if (!all.length) {
+    el.innerHTML = '<p class="chart-empty">no commit activity in the current view</p>';
+    els['chart-hint'].textContent = '';
+    return;
+  }
+  const cut = all.length > MAX_CHART_BUCKETS ? all.slice(-MAX_CHART_BUCKETS) : all;
+  const W = 1040;
+  const H = 280;
+  const PL = 58;
+  const PR = 14;
+  const PT = 18;
+  const PB = 52;
+  const iw = W - PL - PR;
+  const ih = H - PT - PB;
+  const max = Math.max(1, ...cut.map((r) => Math.max(r.added, r.removed)));
+  const top = 4 * Math.ceil(max / 4);
+  const n = cut.length;
+  const slot = iw / n;
+  const barW = Math.max(2, Math.min(16, slot * 0.34));
+  const y = (v) => PT + ih * (1 - v / top);
+
+  let g = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = (top / 4) * i;
+    const yy = y(v);
+    g += `<line x1="${PL}" y1="${yy.toFixed(1)}" x2="${W - PR}" y2="${yy.toFixed(1)}" stroke="#2b3478" stroke-width="1"${i === 0 ? '' : ' stroke-dasharray="3 5"'} />`;
+    g += `<text x="${PL - 8}" y="${(yy + 4).toFixed(1)}" text-anchor="end" class="axis">${fmtInt(v)}</text>`;
+  }
+
+  cut.forEach((r, i) => {
+    const cx = PL + slot * (i + 0.5);
+    const label = fmtBucketLabel(r.start, state.bucket);
+    g += `<g><title>${label}: ${fmtInt(r.commits)} commit${r.commits === 1 ? '' : 's'}, +${fmtInt(r.added)} / −${fmtInt(r.removed)}</title>`;
+    if (r.added > 0) {
+      g += `<rect x="${(cx - barW - 1).toFixed(1)}" y="${y(r.added).toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max((r.added / top) * ih, 1).toFixed(1)}" fill="#7c3aed" />`;
+    }
+    if (r.removed > 0) {
+      g += `<rect x="${(cx + 1).toFixed(1)}" y="${y(r.removed).toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max((r.removed / top) * ih, 1).toFixed(1)}" fill="#aab2e8" />`;
+    }
+    g += '</g>';
+  });
+
+  const maxLabels = Math.min(8, n);
+  for (let k = 0; k < maxLabels; k++) {
+    const i = Math.round((k / Math.max(1, maxLabels - 1)) * (n - 1));
+    const x = PL + slot * (i + 0.5);
+    g += `<text x="${x.toFixed(1)}" y="${H - PB + 22}" text-anchor="middle" class="axis">${fmtBucketLabel(cut[i].start, state.bucket)}</text>`;
+  }
+
+  g +=
+    `<g transform="translate(${PL}, ${H - 10})">` +
+    '<rect x="0" y="-8" width="10" height="10" fill="#7c3aed" /><text x="16" y="1" class="axis">added</text>' +
+    '<rect x="90" y="-8" width="10" height="10" fill="#aab2e8" /><text x="106" y="1" class="axis">removed</text>' +
+    '</g>';
+
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="commit activity chart">${g}</svg>`;
+  els['chart-hint'].textContent =
+    cut.length < all.length
+      ? `showing the most recent ${fmtInt(cut.length)} of ${fmtInt(all.length)} ${state.bucket} buckets`
+      : `${fmtInt(all.length)} ${state.bucket} bucket${all.length === 1 ? '' : 's'} · ${fmtInt(all.reduce((s, r) => s + r.commits, 0))} commits`;
+}
+
+async function refetchTimeline() {
+  if (!state.currentId) return;
+  const qs = filterQS();
+  const tq = qs ? `${qs}&bucket=${state.bucket}` : `?bucket=${state.bucket}`;
+  try {
+    const tl = await api(`/api/repos/${encodeURIComponent(state.currentId)}/timeline${tq}`);
+    state.timeline = tl.rows || [];
+    renderChart();
+  } catch (err) {
+    showToast(err.message, 'err');
+  }
+}
+
+/* ------------------------------------------------------------- author merge */
+
+function renderMergeBar() {
+  const meta = metaById(state.currentId);
+  const aliasCount = meta && meta.aliases ? Object.keys(meta.aliases).length : 0;
+  const onAuthors = state.tab === 'authors';
+  const checked = state.rows.authors.filter((a) => state.checkedEmails.has(a.email));
+
+  const showHint = onAuthors && aliasCount > 0;
+  const showControls = onAuthors && checked.length >= 2;
+  els['merge-bar'].classList.toggle('hidden', !(showHint || showControls));
+  els['merge-hint'].textContent = showHint
+    ? `${aliasCount} email${aliasCount === 1 ? '' : 's'} merged manually`
+    : '';
+  els['btn-reset-merges'].classList.toggle('hidden', !showHint);
+  els['merge-controls'].classList.toggle('hidden', !showControls);
+  if (showControls) {
+    const prev = els['merge-into'].value;
+    const options = checked.slice().sort((x, y2) => y2.churn - x.churn);
+    els['merge-into'].innerHTML = options
+      .map((a) => `<option value="${escapeHtml(a.email)}">${escapeHtml(a.name)} — ${escapeHtml(a.email)}</option>`)
+      .join('');
+    if (prev && options.some((a) => a.email === prev)) els['merge-into'].value = prev;
+  }
+}
+
+/** Refresh metadata, filter sources and metrics after an author merge/reset. */
+async function reloadCurrentRepo() {
+  if (!state.currentId) return;
+  state.sourcesFor = null; // the author list changed: reload the filter dropdown too
+  await refreshRepos();
+  await loadFilterSources(state.currentId);
+  if (state.filter.author && !state.authorOptions.some((a) => a.email === state.filter.author)) {
+    state.filter.author = ''; // the filtered author was merged away
+    els['filter-author'].value = '';
+  }
+  await loadRepoData(state.currentId);
+}
+
+async function doMerge() {
+  const into = els['merge-into'].value;
+  const from = [...state.checkedEmails].filter((e) => e !== into);
+  if (!into || !from.length) {
+    showToast('select at least two different authors', 'err');
+    return;
+  }
+  await withBusy(els['btn-merge'], async () => {
+    await api(`/api/repos/${encodeURIComponent(state.currentId)}/authors/merge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, into })
+    });
+    state.checkedEmails.clear();
+    showToast(`merged ${from.length} email${from.length === 1 ? '' : 's'} into ${into}`);
+    await reloadCurrentRepo();
+  });
+}
+
+async function doResetMerges() {
+  if (!window.confirm('Remove all manual author merges for this repository?')) return;
+  await withBusy(els['btn-reset-merges'], async () => {
+    await api(`/api/repos/${encodeURIComponent(state.currentId)}/authors/reset`, { method: 'POST' });
+    state.checkedEmails.clear();
+    showToast('manual merges removed');
+    await reloadCurrentRepo();
+  });
 }
 
 /* ------------------------------------------------------------------ init */
@@ -700,7 +888,43 @@ function wireEvents() {
     applyFilters();
   });
 
+  els['bucket-switch'].addEventListener('click', (e) => {
+    const btn = e.target.closest('.bucket');
+    if (!btn || btn.dataset.bucket === state.bucket) return;
+    state.bucket = btn.dataset.bucket;
+    for (const b of els['bucket-switch'].querySelectorAll('.bucket')) {
+      b.classList.toggle('active', b === btn);
+    }
+    refetchTimeline();
+  });
+
+  els['metric-table'].addEventListener('change', (e) => {
+    const t = e.target;
+    if (state.tab !== 'authors' || !t.matches('input[type="checkbox"]')) return;
+    if (t.id === 'check-all') {
+      const emails = state.rows.authors.map((a) => a.email);
+      for (const em of emails) {
+        if (t.checked) state.checkedEmails.add(em);
+        else state.checkedEmails.delete(em);
+      }
+      renderTable();
+    } else if (t.classList.contains('row-check')) {
+      const em = t.dataset.email;
+      if (t.checked) state.checkedEmails.add(em);
+      else state.checkedEmails.delete(em);
+      renderMergeBar();
+    }
+  });
+
+  els['btn-merge'].addEventListener('click', doMerge);
+  els['btn-merge-clear'].addEventListener('click', () => {
+    state.checkedEmails.clear();
+    renderTable();
+  });
+  els['btn-reset-merges'].addEventListener('click', doResetMerges);
+
   els['metric-tbody'].addEventListener('click', (e) => {
+    if (e.target.closest('input')) return; // checkbox clicks are not drill-downs
     const row = e.target.closest('tr[data-path]');
     if (row) {
       setPathFilter(row.dataset.path, row.dataset.kind === 'dir');

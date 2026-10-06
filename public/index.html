@@ -59,6 +59,19 @@
     <section id="repo-view" class="hidden">
       <div class="tiles" id="tiles"></div>
 
+      <section class="card chart-card">
+        <div class="chart-head">
+          <h2 class="chart-title">Commit activity</h2>
+          <div class="bucket-switch" id="bucket-switch">
+            <button class="bucket" data-bucket="day" type="button">Day</button>
+            <button class="bucket active" data-bucket="week" type="button">Week</button>
+            <button class="bucket" data-bucket="month" type="button">Month</button>
+          </div>
+        </div>
+        <div class="chart" id="chart"></div>
+        <p class="hint" id="chart-hint"></p>
+      </section>
+
       <section class="card filters-card">
         <div class="filters-head">
           <span class="label">Filters</span>
@@ -98,6 +111,16 @@
           <button class="tab" data-tab="dirs" type="button">Directories</button>
           <button class="tab" data-tab="authors" type="button">Authors</button>
         </div>
+        <div id="merge-bar" class="merge-bar hidden">
+          <span id="merge-hint" class="merge-hint"></span>
+          <button id="btn-reset-merges" class="btn ghost small hidden" type="button">Reset merges</button>
+          <span id="merge-controls" class="merge-controls hidden">
+            <label class="merge-label" for="merge-into">Merge into</label>
+            <select id="merge-into" aria-label="Canonical author"></select>
+            <button id="btn-merge" class="btn primary small" type="button">Merge</button>
+            <button id="btn-merge-clear" class="btn ghost small" type="button">Clear</button>
+          </span>
+        </div>
         <p class="table-note" id="table-note"></p>
         <div class="table-wrap">
           <table id="metric-table">
@@ -121,7 +144,7 @@
 
   <footer class="footer">
     <span>COMS3011A · RAT</span>
-    <span class="sprint-badge">sprints 0-3 · sections a-c</span>
+    <span class="sprint-badge">sprints 0-4 · s5: timeline</span>
   </footer>
 
   <div id="toast" class="toast hidden" role="status"></div>

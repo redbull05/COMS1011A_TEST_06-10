@@ -126,6 +126,28 @@ async function main() {
     }
   });
 
+  /* --- S5 timeline invariant: every bucket size partitions the same totals - */
+  for (const bucket of ['day', 'week', 'month']) {
+    const rows = metrics.timeline(snap, {}, null, bucket);
+    check(`timeline (${bucket}): ${rows.length} buckets sum to the aggregate totals`, () => {
+      assert.strictEqual(rows.reduce((s, b) => s + b.commits, 0), agg.totals.commits, 'commits');
+      assert.strictEqual(rows.reduce((s, b) => s + b.added, 0), agg.totals.added, 'added');
+      assert.strictEqual(rows.reduce((s, b) => s + b.removed, 0), agg.totals.removed, 'removed');
+      assert.strictEqual(rows.reduce((s, b) => s + b.churn, 0), agg.totals.churn, 'churn');
+    });
+    check(`timeline (${bucket}): buckets are chronological, contiguous and non-empty`, () => {
+      let prevEnd = -Infinity;
+      for (const b of rows) {
+        assert.ok(b.commits > 0 && b.churn >= 0, `empty bucket at ${b.start}`);
+        assert.strictEqual(b.growth, b.added - b.removed, `growth = added - removed at ${b.start}`);
+        assert.strictEqual(b.churn, b.added + b.removed, `churn = added + removed at ${b.start}`);
+        assert.ok(b.start < b.end, `start < end at ${b.start}`);
+        assert.ok(b.start >= prevEnd, `overlapping buckets at ${b.start}`);
+        prevEnd = b.end;
+      }
+    });
+  }
+
   console.log('---------------------------------------');
   if (failed) {
     console.log(`${failed} checks failed`);

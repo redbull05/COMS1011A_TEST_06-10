@@ -386,6 +386,94 @@ async function main() {
     eq(a.authors.length, 0, 'author rows');
   });
 
+  /* --- S4: manual author merge (aliases applied at query time) ------------ */
+  console.log('--- S4 author merge: manual aliases on top of .mailmap ---');
+  const ALIASES = { 'alice@example.com': 'bob@example.com' };
+  const mergedAgg = metrics.aggregate(snap, {}, ALIASES);
+  check('merge: exactly 1 author after aliasing Alice into Bob', () =>
+    eq(mergedAgg.authors.length, 1, 'author count'));
+  check('merge: the single author is the canonical email', () =>
+    eq(mergedAgg.authors[0].email, 'bob@example.com', 'email'));
+  check('merge: churn is the full 48', () => eq(mergedAgg.authors[0].churn, 48, 'churn'));
+  check('merge: modifications sum to 8', () =>
+    eq(mergedAgg.authors[0].modifications, 8, 'mods'));
+  check('merge: ownership is 1', () => approx(mergedAgg.authors[0].ownership, 1, 'ownership'));
+  check('merge: repository totals are unaffected by aliasing', () => {
+    eq(mergedAgg.totals.added, agg.totals.added, 'added');
+    eq(mergedAgg.totals.churn, agg.totals.churn, 'churn');
+    eq(mergedAgg.totals.commits, agg.totals.commits, 'commits');
+  });
+  check('merge: alias chains resolve transitively', () => {
+    const chained = metrics.aggregate(snap, {}, {
+      'alice@example.com': 'tmp@example.com',
+      'tmp@example.com': 'bob@example.com'
+    });
+    eq(chained.authors.length, 1, 'author count');
+    eq(chained.authors[0].email, 'bob@example.com', 'resolved email');
+    eq(chained.authors[0].churn, 48, 'churn');
+  });
+  check('merge: aliases compose with filters (Alice view becomes empty)', () => {
+    const a = metrics.aggregate(snap, { author: 'alice@example.com' }, ALIASES);
+    eq(a.totals.commits, 0, 'commits');
+    const b = metrics.aggregate(snap, { author: 'bob@example.com' }, ALIASES);
+    eq(b.totals.commits, 10, 'commits');
+    eq(b.totals.churn, 48, 'churn');
+  });
+
+  /* --- S5: timeline buckets ------------------------------------------------ */
+  console.log('--- S5 timeline: day / week / month buckets ---');
+  const day = metrics.timeline(snap, {}, null, 'day');
+  check('timeline: one bucket per day (10)', () => eq(day.length, 10, 'buckets'));
+  check('timeline: daily buckets each hold 1 commit', () =>
+    day.every((b) => b.commits === 1));
+  check('timeline: daily sums match the totals (+29/-19)', () => {
+    eq(day.reduce((s, b) => s + b.added, 0), 29, 'added');
+    eq(day.reduce((s, b) => s + b.removed, 0), 19, 'removed');
+    eq(day.reduce((s, b) => s + b.commits, 0), 10, 'commits');
+  });
+  const week = metrics.timeline(snap, {}, null, 'week');
+  check('timeline: two Monday-start weeks (2024-01-01 is a Monday)', () => {
+    eq(week.length, 2, 'bucket count');
+    eq(week[0].start, Date.UTC(2024, 0, 1) / 1000, 'week 1 starts Mon 2024-01-01');
+    eq(week[0].commits, 7, 'c1..c7 in week 1');
+    eq(week[1].commits, 3, 'c8..c10 in week 2');
+  });
+  check('timeline: weekly sums are +25/-18 and +4/-1', () => {
+    eq(week[0].added, 25, 'w1 added');
+    eq(week[0].removed, 18, 'w1 removed');
+    eq(week[1].added, 4, 'w2 added');
+    eq(week[1].removed, 1, 'w2 removed');
+  });
+  const month = metrics.timeline(snap, {}, null, 'month');
+  check('timeline: a single month bucket (+29/-19)', () => {
+    eq(month.length, 1, 'bucket count');
+    eq(month[0].added, 29, 'added');
+    eq(month[0].removed, 19, 'removed');
+    eq(month[0].start, Date.UTC(2024, 0, 1) / 1000, 'month starts 2024-01-01');
+    eq(month[0].end, Date.UTC(2024, 1, 1) / 1000, 'month ends 2024-02-01');
+  });
+  check('timeline: Ht window keeps c5..c10 (6 commits, +10/-16)', () => {
+    const t = metrics.timeline(snap, { from: Date.UTC(2024, 0, 5) / 1000 }, null, 'day');
+    eq(t.reduce((s, b) => s + b.commits, 0), 6, 'commits');
+    eq(t.reduce((s, b) => s + b.added, 0), 10, 'added');
+    eq(t.reduce((s, b) => s + b.removed, 0), 16, 'removed');
+  });
+  check('timeline: path filter only counts the object lines', () => {
+    const t = metrics.timeline(snap, { path: 'a.txt' }, null, 'month');
+    eq(t.reduce((s, b) => s + b.commits, 0), 10, 'commits still counted');
+    eq(t.reduce((s, b) => s + b.added, 0), 15, 'added');
+    eq(t.reduce((s, b) => s + b.removed, 0), 2, 'removed');
+  });
+  check('timeline: unknown bucket is rejected', () => {
+    let threw = false;
+    try {
+      metrics.timeline(snap, {}, null, 'fortnight');
+    } catch {
+      threw = true;
+    }
+    assert.ok(threw, 'expected a throw');
+  });
+
   /* --- ingestion paths: zip and local clone ------------------------------- */
   console.log('--- ingestion: zip upload == local clone == work-tree parse ---');
   const zipPath = path.join(TMP, 'scratch.zip');

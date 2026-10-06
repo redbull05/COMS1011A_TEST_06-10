@@ -690,6 +690,106 @@ td .neg { color: var(--err); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/* ---------------- chart (S5 timeline) ---------------- */
+
+.chart-card { padding: 18px 22px 20px; }
+
+.chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.chart-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--purple-hi);
+}
+
+.bucket-switch {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.bucket {
+  padding: 6px 14px;
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: none;
+  cursor: pointer;
+}
+
+.bucket + .bucket { border-left: 1px solid var(--border-strong); }
+.bucket:hover { color: #fff; }
+.bucket.active { color: #fff; background: var(--purple); }
+
+.chart { width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; }
+.chart text.axis { fill: var(--faint); font-family: var(--font-body); font-size: 11px; }
+
+.chart-empty {
+  margin: 0;
+  padding: 34px 0;
+  text-align: center;
+  color: var(--faint);
+  font-size: 13px;
+}
+
+/* ---------------- author merge bar (S4) ---------------- */
+
+.merge-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: var(--purple-tint);
+  border: 1px solid var(--purple);
+  border-radius: var(--radius-sm);
+}
+
+.merge-hint { font-size: 12.5px; color: #fff; }
+
+.merge-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.merge-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--purple-hi);
+}
+
+.merge-controls select { width: auto; min-width: 230px; padding: 6px 10px; font-size: 13px; }
+
+/* checkbox column in the Authors table */
+#metric-table th.check,
+#metric-table td.check { width: 34px; text-align: center; }
+
+#metric-table input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--purple);
+  cursor: pointer;
+}
+
 /* ---------------- scrollbars ---------------- */
 
 .table-wrap::-webkit-scrollbar { width: 10px; height: 10px; }

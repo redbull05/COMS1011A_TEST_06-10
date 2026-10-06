@@ -14,6 +14,9 @@
  *   GET    /api/repos/:id/files              file rows
  *   GET    /api/repos/:id/dirs               directory rows
  *   GET    /api/repos/:id/authors            author rows
+ *   POST   /api/repos/:id/authors/merge      { from, into } manual author merge
+ *   POST   /api/repos/:id/authors/reset      undo all manual merges
+ *   GET    /api/repos/:id/timeline           time buckets (?bucket=day|week|month)
  *
  * Metric endpoints accept the same optional filter params:
  *   ?from=<unix|iso>&to=<unix|iso>&commits=h1,h2&path=<p>&pathIsDir=1&author=<email>
@@ -25,7 +28,7 @@ const store = require('./store');
 const ingest = require('./ingest');
 const metrics = require('./metrics');
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024; // 1 GB
 
 class HttpError extends Error {
@@ -262,6 +265,74 @@ const routes = [
       const { meta, snap } = requireSnapshot(params.id);
       const filter = parseFilter(url);
       return { filter, rows: aggregateCached(meta.id, snap, filter, meta.aliases || null).authors };
+    }
+  },
+  {
+    // Manual author merge (S4): re-point alias chains at query time. The
+    // author keys are the post-.mailmap lowercase emails from the Authors table.
+    method: 'POST',
+    pattern: '/api/repos/:id/authors/merge',
+    handler: async ({ req, params, url }) => {
+      const meta = requireRepo(params.id);
+      const body = await readJson(req);
+      const into = String(body.into || '').trim().toLowerCase();
+      if (!into) throw new HttpError(400, '"into" (the canonical author email) is required');
+      const fromList = Array.isArray(body.from) ? body.from : body.from ? [body.from] : [];
+      const froms = new Set(fromList.map((e) => String(e || '').trim().toLowerCase()).filter(Boolean));
+      if (!froms.size) throw new HttpError(400, '"from" must be a non-empty email or array of emails');
+
+      const { snap } = requireSnapshot(params.id);
+      const known = new Set(metrics.aggregate(snap, {}, meta.aliases || null).authors.map((a) => a.email));
+      for (const e of [...froms, into]) {
+        if (!known.has(e)) {
+          throw new HttpError(400, `unknown author email: ${e} (use the emails shown in the Authors table)`);
+        }
+      }
+      froms.delete(into); // merging an email into itself is a no-op
+      if (!froms.size) throw new HttpError(400, 'nothing to merge: "from" only contains the canonical email');
+
+      const aliases = meta.aliases || {};
+      for (const f of froms) aliases[f] = into;
+      // Re-point entries that currently target a merged-away email, so chains stay clean.
+      for (const key of Object.keys(aliases)) {
+        if (froms.has(aliases[key])) aliases[key] = into;
+      }
+      delete aliases[into]; // the canonical email becomes a chain root (prevents cycles)
+
+      meta.aliases = aliases;
+      store.saveMeta(meta.id, meta);
+      clearRepoCache(params.id);
+
+      const filter = parseFilter(url);
+      return { aliases, rows: metrics.aggregate(snap, filter, aliases).authors };
+    }
+  },
+  {
+    // Undo all manual author merges for this repository.
+    method: 'POST',
+    pattern: '/api/repos/:id/authors/reset',
+    handler: async ({ params, url }) => {
+      const meta = requireRepo(params.id);
+      const { snap } = requireSnapshot(params.id);
+      meta.aliases = {};
+      store.saveMeta(meta.id, meta);
+      clearRepoCache(params.id);
+      const filter = parseFilter(url);
+      return { aliases: meta.aliases, rows: metrics.aggregate(snap, filter, null).authors };
+    }
+  },
+  {
+    // Timeline (S5): bucket the filtered commit set by committer date.
+    method: 'GET',
+    pattern: '/api/repos/:id/timeline',
+    handler: async ({ params, url }) => {
+      const { meta, snap } = requireSnapshot(params.id);
+      const bucket = String(url.searchParams.get('bucket') || 'week').toLowerCase();
+      if (!['day', 'week', 'month'].includes(bucket)) {
+        throw new HttpError(400, `unknown bucket "${bucket}" - use day, week or month`);
+      }
+      const filter = parseFilter(url);
+      return { filter, bucket, rows: metrics.timeline(snap, filter, meta.aliases || null, bucket) };
     }
   }
 ];

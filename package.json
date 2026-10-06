@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server/index.js",
     "verify": "node tests/verify.js",
+    "http": "node tests/http.js",
     "crosscheck": "node tests/crosscheck-cjson.js"
   },
   "engines": {
