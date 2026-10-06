@@ -12,6 +12,7 @@
  *                Modification frequency n/|H|, Churn rate churn/|H|
  *   Author:      Author modifications, author churn,
  *                Ownership = author churn / total churn
+ *                (authors with no churn in the view are omitted)
  *
  * A "filter" restricts H and/or the objects inside it:
  *   { from, to, commits: [hash...] | Set, path, pathIsDir, author }
@@ -113,11 +114,20 @@ function aggregate(snapshot, filter = {}, aliases = null) {
       dirs.set(d, row);
     }
 
-    const arow = authors.get(key) || { name: '', email: key, modifications: 0, churn: 0 };
-    arow.name = c.mn || c.an || arow.name; // latest commit's merged name wins
-    if (cAdded + cRemoved > 0) arow.modifications++;
-    arow.churn += cAdded + cRemoved;
-    authors.set(key, arow);
+    // Authors enter the table only via churn in the current view, so a path
+    // filter lists the authors of the visible object; existing rows may still
+    // refresh their display name from later commits (e.g. a pure rename).
+    const churn = cAdded + cRemoved;
+    let arow = authors.get(key);
+    if (churn > 0) {
+      arow = arow || { name: '', email: key, modifications: 0, churn: 0 };
+      arow.modifications++;
+      arow.churn += churn;
+    }
+    if (arow) {
+      arow.name = c.mn || c.an || arow.name; // latest merged name wins
+      authors.set(key, arow);
+    }
   }
 
   totals.growth = totals.added - totals.removed;

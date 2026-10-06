@@ -59,6 +59,39 @@
     <section id="repo-view" class="hidden">
       <div class="tiles" id="tiles"></div>
 
+      <section class="card filters-card">
+        <div class="filters-head">
+          <span class="label">Filters</span>
+          <span class="flag hidden" id="filters-flag">filters active</span>
+          <button id="btn-filters-clear" class="btn ghost small" type="button" disabled>Clear all</button>
+        </div>
+        <div class="filters-grid">
+          <div class="filter-block">
+            <label class="label" for="filter-author">Author</label>
+            <select id="filter-author"></select>
+          </div>
+          <div class="filter-block">
+            <label class="label" for="filter-from">From (inclusive)</label>
+            <input id="filter-from" type="date" />
+          </div>
+          <div class="filter-block">
+            <label class="label" for="filter-to">To (exclusive)</label>
+            <input id="filter-to" type="date" />
+          </div>
+          <div class="filter-block">
+            <span class="label">Path</span>
+            <div id="path-chip" class="path-chip-empty"></div>
+          </div>
+        </div>
+        <details class="commits-block">
+          <summary><span class="label">Commit set</span> <span id="commits-summary" class="hint">0 selected</span></summary>
+          <div class="commits-body">
+            <input id="commit-search" type="text" placeholder="Search by hash or author…" autocomplete="off" spellcheck="false" />
+            <div class="commits-list" id="commits-list"></div>
+          </div>
+        </details>
+      </section>
+
       <section class="card table-card">
         <div class="tabs" id="tabs">
           <button class="tab active" data-tab="files" type="button">Files</button>
@@ -88,7 +121,7 @@
 
   <footer class="footer">
     <span>COMS3011A · RAT</span>
-    <span class="sprint-badge">sprints 0-2 · sections a-c</span>
+    <span class="sprint-badge">sprints 0-3 · sections a-c</span>
   </footer>
 
   <div id="toast" class="toast hidden" role="status"></div>

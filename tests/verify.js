@@ -272,6 +272,120 @@ async function main() {
     }
   });
 
+  /* --- S3: filtering semantics (windows, commit sets, author, path) ------- */
+  console.log('--- S3 filters: Ht / Hi,j windows, manual commit sets, author, path ---');
+  const H = snap.commits;
+
+  check('from = c5 date -> H6 = c5..c10', () => {
+    const a = metrics.aggregate(snap, { from: H[4].t });
+    eq(a.totals.commits, 6, '|H|');
+    eq(a.totals.added, 10, 'added');
+    eq(a.totals.removed, 16, 'removed');
+    eq(a.totals.growth, -6, 'growth');
+    eq(a.totals.churn, 26, 'churn');
+    eq(a.totals.modifications, 5, 'modifications');
+    eq(a.totals.modificationFrequency, 0.833333, 'modification frequency');
+    eq(a.totals.churnRate, 4.333333, 'churn rate');
+  });
+
+  check('to = c3 date (exclusive) -> only c1, c2', () => {
+    const a = metrics.aggregate(snap, { to: H[2].t });
+    eq(a.totals.commits, 2, '|H|');
+    eq(a.totals.added, 16, 'added');
+    eq(a.totals.removed, 2, 'removed');
+    eq(a.totals.churn, 18, 'churn');
+    eq(a.totals.modificationFrequency, 1, 'modification frequency');
+    eq(a.totals.churnRate, 9, 'churn rate');
+  });
+
+  check('window [c4, c7) -> c4..c6', () => {
+    const a = metrics.aggregate(snap, { from: H[3].t, to: H[6].t });
+    eq(a.totals.commits, 3, '|H|');
+    eq(a.totals.added, 9, 'added');
+    eq(a.totals.removed, 16, 'removed');
+    eq(a.totals.churn, 25, 'churn');
+    eq(a.totals.churnRate, 8.333333, 'churn rate');
+  });
+
+  check('manual commit set [c3, c4]: pure rename contributes nothing', () => {
+    const a = metrics.aggregate(snap, { commits: [H[2].h, H[3].h] });
+    eq(a.totals.commits, 2, '|H|');
+    eq(a.totals.added, 3, 'added');
+    eq(a.totals.removed, 1, 'removed');
+    eq(a.totals.churn, 4, 'churn');
+    eq(a.totals.modifications, 1, 'modifications');
+    eq(a.totals.modificationFrequency, 0.5, 'modification frequency');
+    eq(a.totals.churnRate, 2, 'churn rate');
+  });
+
+  check('author filter (mailmap-merged alice@example.com)', () => {
+    const a = metrics.aggregate(snap, { author: 'alice@example.com' });
+    eq(a.totals.commits, 3, '|H| (c1..c3, incl. the pure rename)');
+    eq(a.totals.added, 16, 'added');
+    eq(a.totals.removed, 2, 'removed');
+    eq(a.totals.churn, 18, 'churn');
+    eq(a.totals.modifications, 2, 'modifications');
+    eq(a.totals.modificationFrequency, 0.666667, 'modification frequency');
+    eq(a.totals.churnRate, 6, 'churn rate');
+    eq(a.authors.length, 1, 'author rows');
+    approx(a.authors[0].ownership, 1, 'ownership within the filtered set');
+  });
+
+  check('author filter (bob@example.com)', () => {
+    const a = metrics.aggregate(snap, { author: 'bob@example.com' });
+    eq(a.totals.commits, 7, '|H|');
+    eq(a.totals.added, 13, 'added');
+    eq(a.totals.removed, 17, 'removed');
+    eq(a.totals.churn, 30, 'churn');
+    eq(a.totals.modifications, 6, 'modifications');
+    eq(a.totals.modificationFrequency, 0.857143, 'modification frequency');
+    eq(a.totals.churnRate, 4.285714, 'churn rate');
+  });
+
+  check('path filter on dir1 (directory): objects filtered, |H| unchanged', () => {
+    const a = metrics.aggregate(snap, { path: 'dir1', pathIsDir: true });
+    eq(a.totals.commits, 10, '|H|');
+    eq(a.totals.added, 6, 'added');
+    eq(a.totals.removed, 1, 'removed');
+    eq(a.totals.churn, 7, 'churn');
+    eq(a.totals.modifications, 3, 'modifications');
+    eq(a.totals.modificationFrequency, 0.3, 'modification frequency');
+    eq(a.totals.churnRate, 0.7, 'churn rate');
+    eq(a.files.length, 1, 'file rows under dir1');
+    eq(a.files[0].path, 'dir1/file.txt', 'the file row');
+  });
+
+  check('path filter on a.txt (file)', () => {
+    const a = metrics.aggregate(snap, { path: 'a.txt' });
+    eq(a.totals.commits, 10, '|H|');
+    eq(a.totals.added, 15, 'added');
+    eq(a.totals.removed, 2, 'removed');
+    eq(a.totals.churn, 17, 'churn');
+    eq(a.totals.modifications, 2, 'modifications');
+    eq(a.totals.modificationFrequency, 0.2, 'modification frequency');
+    eq(a.totals.churnRate, 1.7, 'churn rate');
+    eq(a.files.length, 1, 'file rows');
+  });
+
+  check('per-object author metrics: only Bob touched dir1, ownership 1', () => {
+    const a = metrics.aggregate(snap, { path: 'dir1', pathIsDir: true });
+    eq(a.authors.length, 1, 'authors on dir1');
+    eq(a.authors[0].email, 'bob@example.com', 'author of dir1');
+    eq(a.authors[0].churn, 7, 'author churn on dir1');
+    approx(a.authors[0].ownership, 1, 'ownership of dir1');
+  });
+
+  check('empty commit set -> all zero, frequency/rate 0', () => {
+    const a = metrics.aggregate(snap, { from: H[9].t + 1 });
+    eq(a.totals.commits, 0, '|H|');
+    eq(a.totals.added, 0, 'added');
+    eq(a.totals.churn, 0, 'churn');
+    eq(a.totals.modificationFrequency, 0, 'modification frequency');
+    eq(a.totals.churnRate, 0, 'churn rate');
+    eq(a.files.length, 0, 'file rows');
+    eq(a.authors.length, 0, 'author rows');
+  });
+
   /* --- ingestion paths: zip and local clone ------------------------------- */
   console.log('--- ingestion: zip upload == local clone == work-tree parse ---');
   const zipPath = path.join(TMP, 'scratch.zip');

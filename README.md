@@ -38,7 +38,7 @@ npm run crosscheck            # network: clones cJSON and cross-checks vs raw gi
 | S0     | Scaffold: server serving themed shell, README, .gitignore      | done   |
 | S1     | Metric engine (git-log parse) + URL clone ingestion + core API | done   |
 | S2     | Zip upload ingestion + multi-repo dashboard (flat purple UI)   | done   |
-| S3     | Filtering: time windows, manual commit sets, author, path      | planned |
+| S3     | Filtering UI: author, time window, commit set, path drill-down | done   |
 | S4     | Author merge: .mailmap done; manual alias UI pending           | partial |
 | S5     | Polish: charts, loading/error/empty states, final push         | planned |
 
@@ -83,6 +83,27 @@ asynchronous: the API returns immediately with status `queued`, and the status
 moves through `cloning`/`extracting` -> `parsing` -> `ready` | `error` while the
 dashboard polls. Repos interrupted by a server restart are flagged as `error`.
 
+## Filtering (S3)
+
+Every metric view can be scoped by any combination of filters (ANDed). The
+filters card drives them and all four metric fetches carry the same params, so
+responses are cached per filter (one aggregation pass shared by tiles + table):
+
+- **Author** - dropdown of mailmap-merged authors, loaded from the unfiltered
+  `/authors` response, plus an "all authors" option. Clicking a row on the
+  Authors tab sets it too.
+- **Time window** - two date inputs; `from` is inclusive, `to` exclusive
+  (Ht / Hi,j semantics), compared against committer dates.
+- **Commit set** - multi-select list from `/commits` (hash, date, author) with
+  hash/author search; selected hashes are sent csv-encoded.
+- **Path** - click any Files / Directories row to drill down (`pathIsDir`
+  distinguishes a directory prefix from an exact file); a breadcrumb chip with
+  ✕ shows and clears the current path.
+
+A "filters active" indicator lights up while any filter is set, and **Clear
+all** resets every control. Object filters do not shrink `|H|` (frequency and
+rate stay relative to the full filtered commit set).
+
 ## API
 
 | Method | Path                          | Purpose                                  |
@@ -92,6 +113,7 @@ dashboard polls. Repos interrupted by a server restart are flagged as `error`.
 | POST   | `/api/repos/clone`            | `{ "url": "..." }` -> 202, ingest async  |
 | POST   | `/api/repos/upload`           | multipart `.zip` upload -> 202           |
 | GET    | `/api/repos/:id`              | one repository's metadata                |
+| GET    | `/api/repos/:id/commits`      | commit list for pickers (`h`, `t`, `an`, `ae`, `me`, `a`, `r`) |
 | DELETE | `/api/repos/:id`              | remove repo + data                       |
 | GET    | `/api/repos/:id/metrics`      | repository totals                        |
 | GET    | `/api/repos/:id/files`        | file rows                                |
@@ -103,11 +125,12 @@ Metric endpoints accept optional filters: `from`, `to`, `commits` (csv hashes),
 
 ## Testing
 
-- `npm run verify` - 41 offline checks against `tools/make-scratch-repo.sh`, a
+- `npm run verify` - 51 offline checks against `tools/make-scratch-repo.sh`, a
   deterministic 10-commit history whose metrics are hand-computed in the test:
   per-commit parse, rename purity, binary exclusion, `.mailmap` merge, all five
-  metric categories, an independent text-mode re-parse, and proof that the zip
-  and clone ingestion paths produce **byte-identical** snapshots to the
+  metric categories, the filter semantics (Ht / Hi,j windows, manual commit
+  sets, author, path), an independent text-mode re-parse, and proof that the
+  zip and clone ingestion paths produce **byte-identical** snapshots to the
   work-tree parse.
 - `npm run crosscheck` - network test: deep-clones `DaveGamble/cJSON`, then
   compares totals and the full per-file map against an independent parse and

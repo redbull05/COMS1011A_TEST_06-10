@@ -79,6 +79,8 @@
   --font-display: 'Silkscreen', 'Courier New', monospace;
   --font-body: 'Cantarell', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -228,6 +230,7 @@ body {
 /* ---------------- controls ---------------- */
 
 input[type='text'],
+input[type='date'],
 select,
 input[type='file'] {
   width: 100%;
@@ -282,6 +285,8 @@ input[type='file']::file-selector-button {
 
 .btn.ghost { background: transparent; color: var(--muted); }
 .btn.ghost:hover { color: #fff; border-color: var(--purple); background: var(--purple-tint); }
+
+.btn.small { padding: 5px 12px; font-size: 12.5px; }
 
 /* ---------------- banner ---------------- */
 
@@ -363,6 +368,154 @@ input[type='file']::file-selector-button {
 .tile .pos { color: var(--ok); }
 .tile .neg { color: var(--err); }
 
+/* ---------------- filters ---------------- */
+
+.filters-card { padding: 16px 22px; }
+
+.filters-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.filters-head .label { margin: 0; color: var(--purple-hi); }
+
+.filters-head .btn { margin-left: auto; }
+
+.flag {
+  padding: 3px 10px;
+  font-family: var(--font-display);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--purple-hi);
+  background: var(--purple-tint);
+  border: 1px solid var(--purple);
+  border-radius: 999px;
+}
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.filter-block .label {
+  display: block;
+  margin-bottom: 7px;
+  font-family: var(--font-display);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--purple-hi);
+}
+
+.path-chip-empty {
+  padding: 9px 0;
+  font-size: 12.5px;
+  color: var(--faint);
+}
+
+.path-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 6px 8px 6px 12px;
+  background: var(--purple-tint);
+  border: 1px solid var(--purple);
+  border-radius: 999px;
+}
+
+.path-chip .mono {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: #fff;
+}
+
+.path-chip .kind { font-size: 11px; color: var(--muted); }
+
+.path-chip button {
+  padding: 0 6px;
+  color: var(--purple-hi);
+  font-size: 13px;
+  line-height: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.path-chip button:hover { color: #fff; }
+
+/* commit picker */
+
+.commits-block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.commits-block summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.commits-block summary::-webkit-details-marker { display: none; }
+.commits-block summary .label { margin: 0; color: var(--purple-hi); }
+
+.commits-block summary::before {
+  content: '\25B8';
+  color: var(--purple-hi);
+  font-size: 11px;
+}
+
+.commits-block[open] summary::before { content: '\25BE'; }
+
+.commits-body { display: grid; gap: 8px; margin-top: 10px; }
+
+.commits-list {
+  max-height: 240px;
+  overflow: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.commit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.commit-row:last-child { border-bottom: none; }
+.commit-row:hover { background: var(--surface-3); }
+.commit-row input { accent-color: var(--purple); }
+.commit-row .h { font-family: var(--mono); color: var(--purple-hi); }
+.commit-row .date { color: var(--muted); }
+
+.commit-row .who {
+  margin-left: auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--faint);
+}
+
+.commit-row.more { justify-content: center; cursor: default; color: var(--faint); }
+.commit-row.more:hover { background: none; }
+
 /* ---------------- table card ---------------- */
 
 .table-card { padding: 18px 22px 20px; }
@@ -440,6 +593,7 @@ tbody td {
 
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: var(--surface-2); }
+tbody tr.clickable td { cursor: pointer; }
 
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 

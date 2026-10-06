@@ -19,6 +19,7 @@
 const $ = (id) => document.getElementById(id);
 
 const MAX_ROWS = 400;
+const MAX_COMMIT_ROWS = 300;
 const POLL_MS = 1500;
 const ACTIVE_STATUSES = ['queued', 'cloning', 'extracting', 'parsing'];
 
@@ -43,14 +44,21 @@ const state = {
   },
   busy: false,
   pollTimer: null,
-  requestSeq: 0
+  requestSeq: 0,
+  filter: { from: null, to: null, commits: [], author: '', path: '', pathIsDir: false },
+  commits: [],
+  authorOptions: [],
+  commitSearch: '',
+  sourcesFor: null
 };
 
 const els = {};
 for (const id of [
   'health-status', 'repo-select', 'btn-delete', 'repo-meta', 'clone-url', 'btn-clone',
   'zip-file', 'btn-upload', 'banner', 'repo-view', 'tiles', 'tabs', 'table-note',
-  'metric-thead', 'metric-tbody', 'table-hint', 'empty-state', 'toast'
+  'metric-thead', 'metric-tbody', 'table-hint', 'empty-state', 'toast',
+  'filters-flag', 'btn-filters-clear', 'filter-author', 'filter-from', 'filter-to',
+  'path-chip', 'commits-summary', 'commit-search', 'commits-list'
 ]) {
   els[id] = $(id);
 }
@@ -201,12 +209,14 @@ async function selectRepo(id) {
 
   const meta = metaById(id);
   renderRepoMeta(meta);
+  resetFilters();
   if (!meta) {
     els['repo-view'].classList.add('hidden');
     return;
   }
   if (meta.status === 'ready') {
     els['repo-view'].classList.remove('hidden');
+    if (state.sourcesFor !== id) await loadFilterSources(id);
     await loadRepoData(id);
   } else {
     els['repo-view'].classList.add('hidden');
@@ -228,6 +238,145 @@ function renderIngestionBanner(meta) {
   showBanner(`<span class="spinner"></span>${verb} <strong>${escapeHtml(meta.name)}</strong>… this page updates automatically.`, 'busy');
 }
 
+/* ------------------------------------------------------------------ filters */
+
+function filtersActive() {
+  const f = state.filter;
+  return f.from != null || f.to != null || f.commits.length > 0 || !!f.author || !!f.path;
+}
+
+/** Query string shared by all four metric fetches (see parseFilter in api.js). */
+function filterQS() {
+  const f = state.filter;
+  const q = new URLSearchParams();
+  if (f.from != null) q.set('from', String(f.from));
+  if (f.to != null) q.set('to', String(f.to));
+  if (f.commits.length) q.set('commits', f.commits.join(','));
+  if (f.author) q.set('author', f.author);
+  if (f.path) {
+    q.set('path', f.path);
+    if (f.pathIsDir) q.set('pathIsDir', '1');
+  }
+  const s = q.toString();
+  return s ? `?${s}` : '';
+}
+
+function updateFilterFlag() {
+  const active = filtersActive();
+  els['filters-flag'].classList.toggle('hidden', !active);
+  els['btn-filters-clear'].disabled = !active;
+}
+
+/** Commit list + full author list, loaded once per repository (unfiltered). */
+async function loadFilterSources(id) {
+  try {
+    const [commits, authors] = await Promise.all([
+      api(`/api/repos/${id}/commits`),
+      api(`/api/repos/${id}/authors`)
+    ]);
+    state.commits = commits.commits || [];
+    state.authorOptions = authors.rows || [];
+    state.sourcesFor = id;
+    renderAuthorOptions();
+    renderCommitList();
+  } catch (err) {
+    console.error('[rat] filter sources failed:', err);
+  }
+}
+
+function renderAuthorOptions() {
+  const sel = els['filter-author'];
+  sel.innerHTML =
+    '<option value="">all authors</option>' +
+    state.authorOptions
+      .map((a) => `<option value="${escapeHtml(a.email)}">${escapeHtml(a.name)} — ${escapeHtml(a.email)}</option>`)
+      .join('');
+  sel.value = state.filter.author || '';
+}
+
+function renderCommitList() {
+  const q = state.commitSearch.trim().toLowerCase();
+  const newestFirst = state.commits.slice().reverse();
+  const matches = q
+    ? newestFirst.filter(
+        (c) =>
+          c.h.startsWith(q) ||
+          String(c.an || '').toLowerCase().includes(q) ||
+          String(c.ae || '').toLowerCase().includes(q) ||
+          String(c.me || '').toLowerCase().includes(q)
+      )
+    : newestFirst;
+
+  const shown = matches.slice(0, MAX_COMMIT_ROWS);
+  const rows = shown.map(
+    (c) =>
+      '<label class="commit-row">' +
+      `<input type="checkbox" data-h="${c.h}"${state.filter.commits.includes(c.h) ? ' checked' : ''} />` +
+      `<span class="h">${c.h.slice(0, 8)}</span>` +
+      `<span class="date">${new Date(c.t * 1000).toISOString().slice(0, 10)}</span>` +
+      `<span class="who">${escapeHtml(c.an || '')}</span>` +
+      '</label>'
+  );
+  if (matches.length > MAX_COMMIT_ROWS) {
+    rows.push(`<div class="commit-row more">showing first ${fmtInt(MAX_COMMIT_ROWS)} of ${fmtInt(matches.length)} — refine the search</div>`);
+  }
+  els['commits-list'].innerHTML = rows.length ? rows.join('') : '<div class="commit-row more">no commits match</div>';
+  els['commits-summary'].textContent = `${state.filter.commits.length} selected`;
+}
+
+function renderPathChip() {
+  const el = els['path-chip'];
+  const f = state.filter;
+  if (!f.path) {
+    el.className = 'path-chip-empty';
+    el.textContent = 'none — click a Files / Directories row to drill down';
+    return;
+  }
+  el.className = 'path-chip';
+  el.innerHTML =
+    `<span class="mono">${escapeHtml(f.path)}</span>` +
+    `<span class="kind">${f.pathIsDir ? 'directory' : 'file'}</span>` +
+    '<button type="button" id="btn-path-clear" title="clear the path filter">✕</button>';
+  document.getElementById('btn-path-clear').addEventListener('click', () => {
+    state.filter.path = '';
+    state.filter.pathIsDir = false;
+    renderPathChip();
+    applyFilters();
+  });
+}
+
+function setPathFilter(path, isDir) {
+  state.filter.path = path;
+  state.filter.pathIsDir = !!isDir;
+  renderPathChip();
+  applyFilters();
+}
+
+function resetFilters() {
+  state.filter = { from: null, to: null, commits: [], author: '', path: '', pathIsDir: false };
+  state.commitSearch = '';
+  els['filter-author'].value = '';
+  els['filter-from'].value = '';
+  els['filter-to'].value = '';
+  els['commit-search'].value = '';
+  renderPathChip();
+  updateFilterFlag();
+  renderCommitList();
+}
+
+function clearFilters() {
+  resetFilters();
+  applyFilters();
+}
+
+/** Re-fetch the four metric payloads with the current filter applied. */
+function applyFilters() {
+  updateFilterFlag();
+  if (!state.currentId) return;
+  const meta = metaById(state.currentId);
+  if (meta && meta.status === 'ready') loadRepoData(state.currentId);
+}
+
 /* ------------------------------------------------------------ metric data */
 
 async function loadRepoData(id) {
@@ -237,11 +386,12 @@ async function loadRepoData(id) {
   els['metric-thead'].innerHTML = '';
   els['metric-tbody'].innerHTML = '';
   try {
+    const qs = filterQS();
     const [metrics, files, dirs, authors] = await Promise.all([
-      api(`/api/repos/${id}/metrics`),
-      api(`/api/repos/${id}/files`),
-      api(`/api/repos/${id}/dirs`),
-      api(`/api/repos/${id}/authors`)
+      api(`/api/repos/${id}/metrics${qs}`),
+      api(`/api/repos/${id}/files${qs}`),
+      api(`/api/repos/${id}/dirs${qs}`),
+      api(`/api/repos/${id}/authors${qs}`)
     ]);
     if (seq !== state.requestSeq) return; // superseded by a newer selection
     state.totals = metrics.totals;
@@ -338,9 +488,13 @@ function renderTable() {
       .join('') +
     '</tr>';
 
-  // body
+  // body (rows are clickable: Files/Dirs rows drill into a path, author rows set the author filter)
   const shown = rows.slice(0, MAX_ROWS);
-  els['metric-tbody'].innerHTML = shown.map((r) => `<tr>${cols.map((c) => cell(c, r)).join('')}</tr>`).join('');
+  const rowAttrs = (r) =>
+    tab === 'authors'
+      ? ` class="clickable" data-author="${escapeHtml(r.email)}" title="Filter by this author"`
+      : ` class="clickable" data-path="${escapeHtml(r.path)}" data-kind="${tab === 'dirs' ? 'dir' : 'file'}" title="Filter by this path"`;
+  els['metric-tbody'].innerHTML = shown.map((r) => `<tr${rowAttrs(r)}>${cols.map((c) => cell(c, r)).join('')}</tr>`).join('');
 
   // notes
   const sortCol = cols.find((c) => c.key === sort.key);
@@ -460,6 +614,9 @@ async function doDelete() {
     state.currentId = null;
     state.totals = null;
     state.rows = { files: [], dirs: [], authors: [] };
+    state.commits = [];
+    state.authorOptions = [];
+    state.sourcesFor = null;
     els['repo-view'].classList.add('hidden');
     hideBanner();
     renderRepoMeta(null);
@@ -506,6 +663,55 @@ function wireEvents() {
 
   els['repo-select'].addEventListener('change', (e) => {
     selectRepo(e.target.value);
+  });
+
+  els['btn-filters-clear'].addEventListener('click', clearFilters);
+
+  els['filter-author'].addEventListener('change', (e) => {
+    state.filter.author = e.target.value;
+    applyFilters();
+  });
+
+  for (const [id, key] of [
+    ['filter-from', 'from'],
+    ['filter-to', 'to']
+  ]) {
+    els[id].addEventListener('change', (e) => {
+      const v = e.target.value;
+      const ts = v ? Math.floor(Date.parse(`${v}T00:00:00Z`) / 1000) : null;
+      state.filter[key] = Number.isFinite(ts) ? ts : null;
+      applyFilters();
+    });
+  }
+
+  els['commit-search'].addEventListener('input', (e) => {
+    state.commitSearch = e.target.value;
+    renderCommitList();
+  });
+
+  els['commits-list'].addEventListener('change', (e) => {
+    const cb = e.target.closest('input[type="checkbox"][data-h]');
+    if (!cb) return;
+    const set = new Set(state.filter.commits);
+    if (cb.checked) set.add(cb.dataset.h);
+    else set.delete(cb.dataset.h);
+    state.filter.commits = [...set];
+    els['commits-summary'].textContent = `${state.filter.commits.length} selected`;
+    applyFilters();
+  });
+
+  els['metric-tbody'].addEventListener('click', (e) => {
+    const row = e.target.closest('tr[data-path]');
+    if (row) {
+      setPathFilter(row.dataset.path, row.dataset.kind === 'dir');
+      return;
+    }
+    const authorRow = e.target.closest('tr[data-author]');
+    if (authorRow) {
+      state.filter.author = authorRow.dataset.author;
+      els['filter-author'].value = authorRow.dataset.author;
+      applyFilters();
+    }
   });
 
   els.tabs.addEventListener('click', (e) => {

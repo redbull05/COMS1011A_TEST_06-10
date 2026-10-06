@@ -8,6 +8,7 @@
  *   POST   /api/repos/clone                  { url, name? }        -> 202 meta
  *   POST   /api/repos/upload                 multipart zip file    -> 202 meta
  *   GET    /api/repos/:id                    meta (incl. status)
+ *   GET    /api/repos/:id/commits            commit list ({h,t,an,ae,me,a,r})
  *   DELETE /api/repos/:id                    remove repo + data
  *   GET    /api/repos/:id/metrics            totals (all 5 categories summarized)
  *   GET    /api/repos/:id/files              file rows
@@ -205,6 +206,16 @@ const routes = [
     method: 'GET',
     pattern: '/api/repos/:id',
     handler: async ({ params }) => requireRepo(params.id)
+  },
+  {
+    method: 'GET',
+    pattern: '/api/repos/:id/commits',
+    handler: async ({ params }) => {
+      const { snap } = requireSnapshot(params.id);
+      return {
+        commits: snap.commits.map((c) => ({ h: c.h, t: c.t, an: c.an, ae: c.ae, me: c.me, a: c.a, r: c.r }))
+      };
+    }
   },
   {
     method: 'DELETE',
