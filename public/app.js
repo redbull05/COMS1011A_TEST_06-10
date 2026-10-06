@@ -57,7 +57,7 @@ const state = {
 
 const els = {};
 for (const id of [
-  'health-status', 'repo-select', 'btn-delete', 'repo-meta', 'clone-url', 'btn-clone',
+  'health-status', 'btn-tips', 'repo-select', 'btn-delete', 'repo-meta', 'clone-url', 'btn-clone',
   'zip-file', 'btn-upload', 'banner', 'repo-view', 'tiles', 'tabs', 'table-note',
   'metric-thead', 'metric-tbody', 'table-hint', 'empty-state', 'toast',
   'filters-flag', 'btn-filters-clear', 'filter-author', 'filter-from', 'filter-to',
@@ -497,13 +497,13 @@ function renderTable() {
           const all =
             state.rows.authors.length > 0 &&
             state.rows.authors.every((a) => state.checkedEmails.has(a.email));
-          return `<th class="check"><input type="checkbox" id="check-all" aria-label="select all authors"${all ? ' checked' : ''} /></th>`;
+          return `<th class="check"><input type="checkbox" id="check-all" aria-label="select all authors" data-tip="Selects every author in this view for merging."${all ? ' checked' : ''} /></th>`;
         }
         const classes = ['sortable'];
         if (NUMERIC.has(c.type)) classes.push('num');
         if (sort.key === c.key) classes.push('sorted');
         const arrow = sort.key === c.key ? `<span class="arrow">${sort.dir === 1 ? '▲' : '▼'}</span>` : '';
-        return `<th class="${classes.join(' ')}" data-key="${c.key}">${c.label}${arrow}</th>`;
+        return `<th class="${classes.join(' ')}" data-key="${c.key}" data-tip="Click to sort — first click is high-to-low, click again to flip.">${c.label}${arrow}</th>`;
       })
       .join('') +
     '</tr>';
@@ -512,8 +512,8 @@ function renderTable() {
   const shown = rows.slice(0, MAX_ROWS);
   const rowAttrs = (r) =>
     tab === 'authors'
-      ? ` class="clickable" data-author="${escapeHtml(r.email)}" title="Filter by this author"`
-      : ` class="clickable" data-path="${escapeHtml(r.path)}" data-kind="${tab === 'dirs' ? 'dir' : 'file'}" title="Filter by this path"`;
+      ? ` class="clickable" data-author="${escapeHtml(r.email)}" title="Filter by this author" data-tip="Click a row to filter the whole dashboard by that author."`
+      : ` class="clickable" data-path="${escapeHtml(r.path)}" data-kind="${tab === 'dirs' ? 'dir' : 'file'}" title="Filter by this path" data-tip="Click a row to drill down into that file or directory."`;
   els['metric-tbody'].innerHTML = shown.map((r) => `<tr${rowAttrs(r)}>${cols.map((c) => cell(c, r)).join('')}</tr>`).join('');
 
   // notes
@@ -536,7 +536,7 @@ function cell(c, r) {
     case 'check':
       return (
         `<td class="check"><input type="checkbox" class="row-check" data-email="${escapeHtml(r.email)}"` +
-        ` aria-label="select ${escapeHtml(r.name)}"${state.checkedEmails.has(r.email) ? ' checked' : ''} /></td>`
+        ` aria-label="select ${escapeHtml(r.name)}" data-tip="Tick two or more authors, then use Merge into to combine them under one email."${state.checkedEmails.has(r.email) ? ' checked' : ''} /></td>`
       );
     case 'path': {
       const p = String(v || '');
@@ -839,6 +839,147 @@ async function doResetMerges() {
   });
 }
 
+/* ------------------------------------------------------------- tips (tutorial)
+ *
+ * One-time pop-up hints: the first time a control is used (clicked or
+ * focused - hovered for the chart), a small popover explains what it does.
+ * Seen tips live in localStorage, the header button mutes them and replays
+ * the whole tour on the next click.
+ */
+
+const TIPS_KEY = 'rat.tips.v1';
+const TIP_MS = 9000;
+
+let tipsState = { enabled: true, seen: [] };
+try {
+  const raw = JSON.parse(localStorage.getItem(TIPS_KEY));
+  if (raw && typeof raw === 'object') {
+    tipsState = {
+      enabled: raw.enabled !== false,
+      seen: Array.isArray(raw.seen) ? raw.seen : []
+    };
+  }
+} catch {
+  /* private mode / storage disabled: tips stay per-visit */
+}
+
+function saveTips() {
+  try {
+    localStorage.setItem(TIPS_KEY, JSON.stringify(tipsState));
+  } catch {
+    /* ignore */
+  }
+}
+
+let tipEl = null;
+let tipTimer = null;
+
+function hideTip() {
+  clearTimeout(tipTimer);
+  tipTimer = null;
+  if (tipEl) {
+    tipEl.remove();
+    tipEl = null;
+  }
+}
+
+/** Show a tip anchored to `target`; the message doubles as the shown-once key. */
+function showTip(target, text) {
+  const msg = text || target.getAttribute('data-tip');
+  if (!msg || !target.isConnected) return;
+  if (tipsState.seen.includes(msg)) return; // seen check first, so a click
+  // immediately followed by focusin keeps the tip on screen instead of
+  // hiding it again
+  hideTip();
+
+  tipsState.seen.push(msg);
+  if (tipsState.seen.length > 300) tipsState.seen = tipsState.seen.slice(-300);
+  saveTips();
+
+  const pop = document.createElement('div');
+  pop.className = 'tip-pop';
+  pop.setAttribute('role', 'status');
+  const tag = document.createElement('span');
+  tag.className = 'tip-tag';
+  tag.textContent = 'tip';
+  const body = document.createElement('span');
+  body.className = 'tip-text';
+  body.textContent = msg;
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'tip-close';
+  close.setAttribute('aria-label', 'Dismiss tip');
+  close.textContent = '✕';
+  close.addEventListener('click', hideTip);
+  pop.append(tag, body, close);
+  document.body.appendChild(pop);
+  tipEl = pop;
+
+  // place below the target, flip above when there is no room
+  const r = target.getBoundingClientRect();
+  const pw = pop.offsetWidth;
+  const ph = pop.offsetHeight;
+  const gap = 10;
+  let left = r.left + r.width / 2 - pw / 2;
+  left = Math.max(10, Math.min(left, window.innerWidth - pw - 10));
+  let top = r.bottom + gap;
+  if (top + ph > window.innerHeight - 10) {
+    top = r.top - ph - gap;
+    pop.classList.add('up');
+  }
+  if (top < 10) {
+    top = Math.max(10, r.bottom + gap);
+    pop.classList.remove('up');
+  }
+  pop.style.left = `${Math.round(left)}px`;
+  pop.style.top = `${Math.round(top)}px`;
+  const ax = Math.max(14, Math.min(r.left + r.width / 2 - left, pw - 14));
+  pop.style.setProperty('--ax', `${Math.round(ax)}px`);
+
+  tipTimer = setTimeout(hideTip, TIP_MS);
+}
+
+function onTipInteraction(e) {
+  if (!tipsState.enabled || !e.target.closest) return;
+  const el = e.target.closest('[data-tip]');
+  if (el) showTip(el);
+}
+
+function onTipHover(e) {
+  if (!tipsState.enabled || !e.target.closest) return;
+  const el = e.target.closest('[data-tip-hover]');
+  if (el) showTip(el);
+}
+
+function updateTipsButton() {
+  const btn = els['btn-tips'];
+  btn.classList.toggle('off', !tipsState.enabled);
+  btn.querySelector('.txt').textContent = tipsState.enabled ? 'tips on' : 'tips off';
+  btn.setAttribute('aria-pressed', String(tipsState.enabled));
+}
+
+function toggleTips() {
+  tipsState.enabled = !tipsState.enabled;
+  if (tipsState.enabled) {
+    tipsState.seen = []; // replay the whole tour from the start
+    showToast('tips restored — the tour starts over');
+    showTip(els['btn-tips'], 'Tips are on — touch any control to see what it does. Click me again to mute them.');
+  } else {
+    hideTip();
+    showToast('tips muted — click again to restore them');
+  }
+  saveTips();
+  updateTipsButton();
+}
+
+function maybeWelcomeTip() {
+  if (!tipsState.enabled || tipsState.seen.length) return;
+  showTip(
+    els['btn-tips'],
+    'Welcome to RAT! Short tips pop up the first time you touch a control — click me any time to mute them or replay the tour.'
+  );
+}
+
 /* ------------------------------------------------------------------ init */
 
 function wireEvents() {
@@ -960,10 +1101,24 @@ function wireEvents() {
     }
     renderTable();
   });
+
+  // tutorial tips: first click/focus on any tipped control (hover for the
+  // chart). Capture phase: some handlers re-render their target mid-dispatch
+  // (the sortable headers rebuild the thead), so the tip must read the
+  // element before it is replaced.
+  document.addEventListener('click', onTipInteraction, true);
+  document.addEventListener('focusin', onTipInteraction, true);
+  document.addEventListener('mouseover', onTipHover);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideTip();
+  });
+  window.addEventListener('scroll', hideTip, true);
+  els['btn-tips'].addEventListener('click', toggleTips);
 }
 
 async function init() {
   wireEvents();
+  updateTipsButton();
   checkHealth();
   try {
     await refreshRepos();
@@ -973,6 +1128,7 @@ async function init() {
   } catch (err) {
     showBanner(`Cannot reach the backend: ${escapeHtml(err.message)}`, 'err');
   }
+  maybeWelcomeTip();
 }
 
 init();

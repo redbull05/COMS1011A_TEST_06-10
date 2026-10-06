@@ -28,7 +28,7 @@ const store = require('./store');
 const ingest = require('./ingest');
 const metrics = require('./metrics');
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024; // 1 GB
 
 class HttpError extends Error {

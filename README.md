@@ -126,6 +126,15 @@ second, query-time layer:
 - Emails are validated against the live author rows (the post-mailmap lowercase
   keys shown in the table), so unknown or self merges are rejected with 400.
 
+## Guided tips (v0.3.0)
+
+A built-in mini tutorial: the **first time** any control is used (clicked or
+focused - the chart is hover-triggered), a small popover pops up explaining
+what it does. Tips are one-shot per message, remembered in `localStorage`
+(`rat.tips.v1`), and auto-dismiss after 9s (or Esc / ✕). The header's
+**tips on / tips off** button mutes the tour and replays it from scratch on
+the next click.
+
 ## Timeline (S5)
 
 `GET /api/repos/:id/timeline?bucket=day|week|month` buckets the commit history
@@ -182,8 +191,10 @@ Metric endpoints accept optional filters: `from`, `to`, `commits` (csv hashes),
 
 Bundled in `public/fonts/` and served locally (no CDN):
 
-- **Silkscreen** (headings, labels, tabs) - SIL Open Font License 1.1,
-  `OFL-Silkscreen.txt`.
+- **Silkscreen** (page title and large headings) - SIL Open Font License 1.1,
+  `OFL-Silkscreen.txt`. The pixel font is only used at **14px and above**;
+  anything smaller (labels, tabs, table headers, chart titles) switches to
+  bold Cantarell for readability.
 - **Cantarell** (body text) - SIL Open Font License 1.1, `OFL-Cantarell.txt`.
 
 ## Project layout

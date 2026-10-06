@@ -20,7 +20,13 @@
         <p class="tagline">Software-evolution metrics for Git repositories</p>
       </div>
     </div>
-    <div class="status" id="health-status"><span class="dot"></span>connecting…</div>
+    <div class="topbar-right">
+      <button id="btn-tips" class="tips-btn" type="button" aria-pressed="true"
+              title="Mute the usage tips, or click again to replay the tour">
+        <span class="dot"></span><span class="txt">tips on</span>
+      </button>
+      <div class="status" id="health-status"><span class="dot"></span>connecting…</div>
+    </div>
   </header>
 
   <main class="layout">
@@ -29,8 +35,10 @@
       <div class="repo-current">
         <label class="label" for="repo-select">Repository</label>
         <div class="row">
-          <select id="repo-select" aria-label="Selected repository"></select>
-          <button id="btn-delete" class="btn ghost" type="button" title="Remove this repository">Remove</button>
+          <select id="repo-select" aria-label="Selected repository"
+                  data-tip="Pick the repository to analyse — every metric below follows this selection."></select>
+          <button id="btn-delete" class="btn ghost" type="button" title="Remove this repository"
+                  data-tip="Removes this repository and its stored snapshot from RAT.">Remove</button>
         </div>
         <p class="repo-meta" id="repo-meta"></p>
       </div>
@@ -40,15 +48,19 @@
           <label class="label" for="clone-url">Clone from URL</label>
           <div class="row">
             <input id="clone-url" type="text" placeholder="https://github.com/user/repo.git"
-                   autocomplete="off" spellcheck="false" />
-            <button id="btn-clone" class="btn primary" type="button">Clone</button>
+                   autocomplete="off" spellcheck="false"
+                   data-tip="Paste a Git URL (or a local path) and press Clone — the full history is ingested." />
+            <button id="btn-clone" class="btn primary" type="button"
+                    data-tip="Deep-clones the repository and starts the metric scan.">Clone</button>
           </div>
         </div>
         <div class="add-block">
           <label class="label" for="zip-file">Upload zip (must contain .git)</label>
           <div class="row">
-            <input id="zip-file" type="file" accept=".zip,application/zip" />
-            <button id="btn-upload" class="btn primary" type="button">Upload</button>
+            <input id="zip-file" type="file" accept=".zip,application/zip"
+                   data-tip="Upload a .zip that contains a .git folder — the repo root is found automatically." />
+            <button id="btn-upload" class="btn primary" type="button"
+                    data-tip="Ingests the uploaded zip and adds the repository to the list.">Upload</button>
           </div>
         </div>
       </div>
@@ -63,12 +75,15 @@
         <div class="chart-head">
           <h2 class="chart-title">Commit activity</h2>
           <div class="bucket-switch" id="bucket-switch">
-            <button class="bucket" data-bucket="day" type="button">Day</button>
-            <button class="bucket active" data-bucket="week" type="button">Week</button>
-            <button class="bucket" data-bucket="month" type="button">Month</button>
+            <button class="bucket" data-bucket="day" type="button"
+                    data-tip="Switch the chart between daily, weekly and monthly buckets.">Day</button>
+            <button class="bucket active" data-bucket="week" type="button"
+                    data-tip="Switch the chart between daily, weekly and monthly buckets.">Week</button>
+            <button class="bucket" data-bucket="month" type="button"
+                    data-tip="Switch the chart between daily, weekly and monthly buckets.">Month</button>
           </div>
         </div>
-        <div class="chart" id="chart"></div>
+        <div class="chart" id="chart" data-tip="Hover the bars for exact numbers — purple = lines added, light = lines removed." data-tip-hover></div>
         <p class="hint" id="chart-hint"></p>
       </section>
 
@@ -76,20 +91,24 @@
         <div class="filters-head">
           <span class="label">Filters</span>
           <span class="flag hidden" id="filters-flag">filters active</span>
-          <button id="btn-filters-clear" class="btn ghost small" type="button" disabled>Clear all</button>
+          <button id="btn-filters-clear" class="btn ghost small" type="button" disabled
+                  data-tip="Clears every filter in one click.">Clear all</button>
         </div>
         <div class="filters-grid">
           <div class="filter-block">
             <label class="label" for="filter-author">Author</label>
-            <select id="filter-author"></select>
+            <select id="filter-author"
+                    data-tip="Show only one author's contributions (the post-.mailmap email)."></select>
           </div>
           <div class="filter-block">
             <label class="label" for="filter-from">From (inclusive)</label>
-            <input id="filter-from" type="date" />
+            <input id="filter-from" type="date"
+                   data-tip="From is inclusive: commits made on this day are counted." />
           </div>
           <div class="filter-block">
             <label class="label" for="filter-to">To (exclusive)</label>
-            <input id="filter-to" type="date" />
+            <input id="filter-to" type="date"
+                   data-tip="To is exclusive: commits made on this day are not counted yet." />
           </div>
           <div class="filter-block">
             <span class="label">Path</span>
@@ -99,26 +118,35 @@
         <details class="commits-block">
           <summary><span class="label">Commit set</span> <span id="commits-summary" class="hint">0 selected</span></summary>
           <div class="commits-body">
-            <input id="commit-search" type="text" placeholder="Search by hash or author…" autocomplete="off" spellcheck="false" />
-            <div class="commits-list" id="commits-list"></div>
+            <input id="commit-search" type="text" placeholder="Search by hash or author…" autocomplete="off" spellcheck="false"
+                   data-tip="Search commits by hash or author to find them quickly." />
+            <div class="commits-list" id="commits-list"
+                 data-tip="Tick commits to build a custom commit set — every metric recomputes instantly."></div>
           </div>
         </details>
       </section>
 
       <section class="card table-card">
         <div class="tabs" id="tabs">
-          <button class="tab active" data-tab="files" type="button">Files</button>
-          <button class="tab" data-tab="dirs" type="button">Directories</button>
-          <button class="tab" data-tab="authors" type="button">Authors</button>
+          <button class="tab active" data-tab="files" type="button"
+                  data-tip="Per-file metrics: added, removed, growth, churn, mods, frequency and churn rate.">Files</button>
+          <button class="tab" data-tab="dirs" type="button"
+                  data-tip="The same metrics rolled up per directory, the repository row being the root.">Directories</button>
+          <button class="tab" data-tab="authors" type="button"
+                  data-tip="Mods, churn and ownership share per author — click a row to filter by that author.">Authors</button>
         </div>
         <div id="merge-bar" class="merge-bar hidden">
           <span id="merge-hint" class="merge-hint"></span>
-          <button id="btn-reset-merges" class="btn ghost small hidden" type="button">Reset merges</button>
+          <button id="btn-reset-merges" class="btn ghost small hidden" type="button"
+                  data-tip="Undoes all manual merges — every original author comes back.">Reset merges</button>
           <span id="merge-controls" class="merge-controls hidden">
             <label class="merge-label" for="merge-into">Merge into</label>
-            <select id="merge-into" aria-label="Canonical author"></select>
-            <button id="btn-merge" class="btn primary small" type="button">Merge</button>
-            <button id="btn-merge-clear" class="btn ghost small" type="button">Clear</button>
+            <select id="merge-into" aria-label="Canonical author"
+                    data-tip="The canonical author the ticked emails merge into — defaults to the highest churn."></select>
+            <button id="btn-merge" class="btn primary small" type="button"
+                    data-tip="Merges the ticked authors into the canonical email — undo any time with Reset merges.">Merge</button>
+            <button id="btn-merge-clear" class="btn ghost small" type="button"
+                    data-tip="Unticks every author checkbox.">Clear</button>
           </span>
         </div>
         <p class="table-note" id="table-note"></p>
@@ -144,7 +172,7 @@
 
   <footer class="footer">
     <span>COMS3011A · RAT</span>
-    <span class="sprint-badge">sprints 0-4 · s5: timeline</span>
+    <span class="sprint-badge">sprints 0-5 · complete</span>
   </footer>
 
   <div id="toast" class="toast hidden" role="status"></div>

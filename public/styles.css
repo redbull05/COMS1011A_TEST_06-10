@@ -76,6 +76,8 @@
   --radius: 12px;
   --radius-sm: 8px;
 
+  /* Silkscreen only at >= 14px (brand title, empty-state heading) - smaller
+     text uses bold Cantarell for readability and a cleaner look */
   --font-display: 'Silkscreen', 'Courier New', monospace;
   --font-body: 'Cantarell', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
@@ -127,7 +129,7 @@ body {
   display: grid;
   place-items: center;
   border-radius: 10px;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: 13px;
   letter-spacing: 0.04em;
@@ -201,11 +203,13 @@ body {
   align-items: start;
 }
 
-.repo-bar .label,
-.add-block .label {
+/* one label style everywhere: bold Cantarell (the pixel font is too dense
+   below 14px, so small labels switch to the body font) */
+.label {
   display: block;
   margin-bottom: 7px;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
+  font-weight: 700;
   font-size: 10.5px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -340,8 +344,9 @@ input[type='file']::file-selector-button {
 .tile .tile-label {
   display: block;
   margin-bottom: 6px;
-  font-family: var(--font-display);
-  font-size: 10px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 10.5px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--muted);
@@ -385,7 +390,8 @@ input[type='file']::file-selector-button {
 
 .flag {
   padding: 3px 10px;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
+  font-weight: 700;
   font-size: 9.5px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -399,16 +405,6 @@ input[type='file']::file-selector-button {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 12px;
-}
-
-.filter-block .label {
-  display: block;
-  margin-bottom: 7px;
-  font-family: var(--font-display);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--purple-hi);
 }
 
 .path-chip-empty {
@@ -529,7 +525,8 @@ input[type='file']::file-selector-button {
 
 .tab {
   padding: 9px 16px;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
+  font-weight: 700;
   font-size: 11.5px;
   letter-spacing: 0.03em;
   color: var(--muted);
@@ -568,8 +565,8 @@ thead th {
   z-index: 2;
   padding: 10px 12px;
   text-align: left;
-  font-family: var(--font-display);
-  font-weight: 400;
+  font-family: var(--font-body);
+  font-weight: 700;
   font-size: 10.5px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -656,7 +653,8 @@ td .neg { color: var(--err); }
 
 .sprint-badge {
   padding: 4px 11px;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
+  font-weight: 700;
   font-size: 9.5px;
   letter-spacing: 0.04em;
   color: var(--purple-hi);
@@ -705,7 +703,7 @@ td .neg { color: var(--err); }
 
 .chart-title {
   margin: 0;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: 12px;
   letter-spacing: 0.04em;
@@ -722,7 +720,8 @@ td .neg { color: var(--err); }
 
 .bucket {
   padding: 6px 14px;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
+  font-weight: 700;
   font-size: 10.5px;
   color: var(--muted);
   background: var(--surface-2);
@@ -770,7 +769,8 @@ td .neg { color: var(--err); }
 }
 
 .merge-label {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
+  font-weight: 700;
   font-size: 10px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -789,6 +789,105 @@ td .neg { color: var(--err); }
   accent-color: var(--purple);
   cursor: pointer;
 }
+
+/* ---------------- tips (tutorial pop-ups) ---------------- */
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tips-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 13px;
+  color: var(--muted);
+  font: 700 12px var(--font-body);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tips-btn:hover { color: #fff; border-color: var(--purple); }
+
+.tips-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--purple-hi); }
+.tips-btn.off .dot { background: var(--faint); }
+
+.tip-pop {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  max-width: 300px;
+  padding: 10px 12px 10px 13px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--purple);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+  animation: tipIn 0.15s ease-out;
+}
+
+.tip-pop::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: var(--ax, 50%);
+  width: 9px;
+  height: 9px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--surface-2);
+  border-left: 1px solid var(--purple);
+  border-top: 1px solid var(--purple);
+}
+
+/* arrow at the bottom when the tip had to flip above its target */
+.tip-pop.up::before {
+  top: auto;
+  bottom: -5px;
+  border: none;
+  border-right: 1px solid var(--purple);
+  border-bottom: 1px solid var(--purple);
+}
+
+@keyframes tipIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tip-tag {
+  flex: none;
+  margin-top: 2px;
+  padding: 2px 8px;
+  font: 700 10px var(--font-body);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--purple);
+  border-radius: 999px;
+}
+
+.tip-text { flex: 1; min-width: 0; }
+
+.tip-close {
+  flex: none;
+  padding: 0 2px;
+  color: var(--faint);
+  font: 13px/1.4 var(--font-body);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.tip-close:hover { color: #fff; }
 
 /* ---------------- scrollbars ---------------- */
 
